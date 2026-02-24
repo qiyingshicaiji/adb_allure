@@ -212,8 +212,8 @@ def is_process_running(package):
     Returns:
         bool: 进程是否存在
     """
-    output = run_adb(f"shell ps | grep {package}")
-    return package in output
+    output = run_adb(f"shell pidof {package}")
+    return len(output.strip()) > 0
 
 
 def set_screen_orientation(landscape=False):

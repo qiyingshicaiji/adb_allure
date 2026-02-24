@@ -29,7 +29,7 @@ def check_device_connection():
     )
     devices = result.stdout.strip().splitlines()
     # 第一行是 "List of devices attached"，之后每行是一个设备
-    connected = [line for line in devices[1:] if "device" in line and "offline" not in line]
+    connected = [line for line in devices[1:] if line.strip().endswith("\tdevice") or "\tdevice\t" in line]
     if not connected:
         pytest.skip("未检测到 adb 设备连接，跳过所有测试")
 
