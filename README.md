@@ -23,6 +23,71 @@ adb_allure/
 └── README.md                             # 本文件
 ```
 
+## 项目逻辑原理
+
+### 整体架构
+
+本项目采用 **分层架构**，由底层到上层依次为：
+
+```
+┌────────────────────────────────────────────┐
+│           Allure 测试报告（HTML）            │  ← 可视化展示测试结果
+├────────────────────────────────────────────┤
+│         pytest 测试用例（tests/）            │  ← 编排测试场景和断言
+├────────────────────────────────────────────┤
+│       ADB 工具层（adb_utils.py）            │  ← 封装 adb 命令为 Python 函数
+├────────────────────────────────────────────┤
+│        配置层（config.py）                  │  ← 定义目标 App 和 UI 坐标
+├────────────────────────────────────────────┤
+│     ADB 命令行工具 → 安卓设备/模拟器        │  ← 实际执行操作的底层通道
+└────────────────────────────────────────────┘
+```
+
+### 执行流程
+
+每条测试用例的执行流程如下：
+
+1. **conftest.py（setup）**：清除日志 → 停止音乐 App → 启动音乐 App → 等待加载完成
+2. **测试用例（tests/）**：按步骤操作 App（点击、输入、滑动等）→ 验证结果（断言）
+3. **conftest.py（teardown）**：截图附加到报告 → 恢复竖屏 → 停止 App → 按 Home 键
+
+### 程序如何定位到目标音乐 App
+
+**是的，程序通过 `config.py` 中的配置直接定位到你要测试的音乐软件。** 核心机制如下：
+
+| 步骤 | 实现方式 | 对应代码 |
+|------|---------|---------|
+| **1. 指定目标 App** | 在 `config.py` 中配置包名和 Activity | `MUSIC_PACKAGE`、`MUSIC_ACTIVITY` |
+| **2. 启动 App** | 通过 ADB 命令 `am start -n 包名/Activity` 启动 | `adb_utils.start_app()` |
+| **3. 操作 App** | 通过 ADB 命令在屏幕坐标上点击/输入/滑动 | `adb_utils.tap()`、`input_text()` 等 |
+| **4. 验证结果** | 通过 ADB 读取 Activity、日志、UI 树、媒体状态 | `get_current_activity()`、`check_media_playing()` 等 |
+| **5. 停止 App** | 通过 ADB 命令 `am force-stop 包名` 停止 | `adb_utils.stop_app()` |
+
+换句话说，程序**不是自动识别**手机上安装了什么音乐 App，而是需要你在 `config.py` 中**手动指定**要测试的 App 的包名和 Activity。默认配置的是网易云音乐（`com.netease.cloudmusic`），如果你要测试其他音乐 App（如 QQ 音乐、酷狗音乐等），需要修改 `config.py` 中的对应值。
+
+### 如何获取目标 App 的包名和 Activity
+
+```bash
+# 方法 1：在设备上打开目标 App，然后运行以下命令查看当前前台 Activity
+adb shell dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp'
+
+# 方法 2：列出设备上所有已安装的包名
+adb shell pm list packages | grep -i music
+
+# 方法 3：查看某个 App 的所有 Activity
+adb shell dumpsys package com.xxx.xxx | grep -i activity
+```
+
+获取到包名和 Activity 后，修改 `config.py`：
+
+```python
+# 例如测试 QQ 音乐：
+MUSIC_PACKAGE = "com.tencent.qqmusic"
+MUSIC_ACTIVITY = "com.tencent.qqmusic.activity.AppStarterActivity"
+```
+
+> **注意**：更换 App 后，还需要根据新 App 的界面布局调整 `config.py` 中的坐标配置（搜索框、按钮等位置），因为不同 App 的 UI 布局不同。
+
 ## 环境要求
 
 - Python 3.8+
@@ -140,6 +205,27 @@ make clean
 ### 场景 3：播放过程中模拟来电中断
 - 播放歌曲 → 模拟来电广播 → 验证暂停 → 模拟挂断 → 验证恢复
 - **验证点**：来电时 media_session 状态为暂停；挂断后恢复播放
+
+#### 模拟来电 vs 真实来电
+
+本场景使用 ADB 广播（`am broadcast`）发送 `PHONE_STATE` 状态变更来**模拟**来电，而不是真正拨打电话。两者的区别如下：
+
+| 对比项 | 模拟来电（本项目方式） | 真实来电 |
+|--------|----------------------|---------|
+| **触发方式** | `adb shell am broadcast -a android.intent.action.PHONE_STATE --es state RINGING` | 另一部手机或运营商实际拨入 |
+| **系统层级** | 仅发送一个广播 Intent，不经过电话协议栈 | 经过完整的 Telephony 框架（RIL → TelephonyManager → AudioFocus） |
+| **来电界面** | **不会**弹出系统来电 UI | 会弹出系统来电界面并响铃 |
+| **音频焦点** | 不触发系统级 AudioFocus 抢占；依赖 App 自身监听广播来暂停 | 系统会抢占 AudioFocus，强制其他音频暂停或降低音量 |
+| **Android 版本兼容性** | Android 9+ 可能因权限限制导致广播被忽略 | 所有版本均正常工作 |
+| **适用场景** | 自动化测试中快速验证 App 对来电广播的响应逻辑 | 真实用户场景 |
+
+**结论**：
+
+- **模拟来电是预设的测试场景**，目的是验证音乐 App 是否正确监听了 `PHONE_STATE` 广播并做出暂停/恢复响应。
+- **真实来电**走的是系统 Telephony + AudioFocus 机制，比广播更可靠——即使 App 没有监听 `PHONE_STATE` 广播，系统也会通过 AudioFocus 强制其暂停。因此，如果真实来电时 App 能正常暂停/恢复，说明 App 的音频焦点处理是正确的。
+- 如果模拟来电测试失败但真实来电时 App 表现正常，很可能是因为 App 依赖 AudioFocus 而非 `PHONE_STATE` 广播来处理中断。
+
+> **提示**：如果使用 Android 模拟器（emulator），可以用 `adb emu gsm call <号码>` 发起更接近真实的模拟来电，它会触发完整的电话协议栈。
 
 ### 场景 4：横竖屏切换时播放状态保持
 - 播放歌曲 → 横屏 → 验证播放 → 竖屏 → 验证播放

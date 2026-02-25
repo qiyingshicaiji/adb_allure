@@ -233,6 +233,12 @@ def broadcast_phone_state(state, number=""):
     """
     发送电话状态广播，模拟来电/挂断。
 
+    通过 am broadcast 发送 PHONE_STATE Intent 来模拟来电状态变更。
+    注意：这只是广播级别的模拟，不会触发系统来电 UI 或音频焦点抢占。
+    App 必须自身监听 PHONE_STATE 广播才会响应。
+    在 Android 9+ 上，该广播可能因权限限制被系统忽略。
+    如需更真实的模拟，可在模拟器上使用 `adb emu gsm call <号码>`。
+
     Args:
         state: 电话状态 (RINGING, IDLE, OFFHOOK)
         number: 来电号码（仅 RINGING 状态需要）

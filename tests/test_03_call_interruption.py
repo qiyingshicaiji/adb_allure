@@ -1,6 +1,11 @@
 """
 场景 3：播放过程中模拟来电中断
 验证来电时播放暂停、挂断后播放自动恢复。
+
+本场景通过 ADB 广播（am broadcast）发送 PHONE_STATE 状态变更来模拟来电，
+而非真正拨打电话。该广播仅测试 App 对 PHONE_STATE 广播的监听与响应能力。
+真实来电会经过系统 Telephony 框架并通过 AudioFocus 机制强制暂停音频，
+覆盖范围更广。详见 README.md 中"模拟来电 vs 真实来电"说明。
 """
 
 import time
