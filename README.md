@@ -23,6 +23,71 @@ adb_allure/
 └── README.md                             # 本文件
 ```
 
+## 项目逻辑原理
+
+### 整体架构
+
+本项目采用 **分层架构**，由底层到上层依次为：
+
+```
+┌────────────────────────────────────────────┐
+│           Allure 测试报告（HTML）            │  ← 可视化展示测试结果
+├────────────────────────────────────────────┤
+│         pytest 测试用例（tests/）            │  ← 编排测试场景和断言
+├────────────────────────────────────────────┤
+│       ADB 工具层（adb_utils.py）            │  ← 封装 adb 命令为 Python 函数
+├────────────────────────────────────────────┤
+│        配置层（config.py）                  │  ← 定义目标 App 和 UI 坐标
+├────────────────────────────────────────────┤
+│     ADB 命令行工具 → 安卓设备/模拟器        │  ← 实际执行操作的底层通道
+└────────────────────────────────────────────┘
+```
+
+### 执行流程
+
+每条测试用例的执行流程如下：
+
+1. **conftest.py（setup）**：清除日志 → 停止音乐 App → 启动音乐 App → 等待加载完成
+2. **测试用例（tests/）**：按步骤操作 App（点击、输入、滑动等）→ 验证结果（断言）
+3. **conftest.py（teardown）**：截图附加到报告 → 恢复竖屏 → 停止 App → 按 Home 键
+
+### 程序如何定位到目标音乐 App
+
+**是的，程序通过 `config.py` 中的配置直接定位到你要测试的音乐软件。** 核心机制如下：
+
+| 步骤 | 实现方式 | 对应代码 |
+|------|---------|---------|
+| **1. 指定目标 App** | 在 `config.py` 中配置包名和 Activity | `MUSIC_PACKAGE`、`MUSIC_ACTIVITY` |
+| **2. 启动 App** | 通过 ADB 命令 `am start -n 包名/Activity` 启动 | `adb_utils.start_app()` |
+| **3. 操作 App** | 通过 ADB 命令在屏幕坐标上点击/输入/滑动 | `adb_utils.tap()`、`input_text()` 等 |
+| **4. 验证结果** | 通过 ADB 读取 Activity、日志、UI 树、媒体状态 | `get_current_activity()`、`check_media_playing()` 等 |
+| **5. 停止 App** | 通过 ADB 命令 `am force-stop 包名` 停止 | `adb_utils.stop_app()` |
+
+换句话说，程序**不是自动识别**手机上安装了什么音乐 App，而是需要你在 `config.py` 中**手动指定**要测试的 App 的包名和 Activity。默认配置的是网易云音乐（`com.netease.cloudmusic`），如果你要测试其他音乐 App（如 QQ 音乐、酷狗音乐等），需要修改 `config.py` 中的对应值。
+
+### 如何获取目标 App 的包名和 Activity
+
+```bash
+# 方法 1：在设备上打开目标 App，然后运行以下命令查看当前前台 Activity
+adb shell dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp'
+
+# 方法 2：列出设备上所有已安装的包名
+adb shell pm list packages | grep -i music
+
+# 方法 3：查看某个 App 的所有 Activity
+adb shell dumpsys package com.xxx.xxx | grep -i activity
+```
+
+获取到包名和 Activity 后，修改 `config.py`：
+
+```python
+# 例如测试 QQ 音乐：
+MUSIC_PACKAGE = "com.tencent.qqmusic"
+MUSIC_ACTIVITY = "com.tencent.qqmusic.activity.AppStarterActivity"
+```
+
+> **注意**：更换 App 后，还需要根据新 App 的界面布局调整 `config.py` 中的坐标配置（搜索框、按钮等位置），因为不同 App 的 UI 布局不同。
+
 ## 环境要求
 
 - Python 3.8+

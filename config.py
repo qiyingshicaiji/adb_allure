@@ -1,9 +1,19 @@
 """
 配置文件：音乐 App 测试参数
 根据实际测试设备和 App 修改以下配置。
+
+程序通过下面的 MUSIC_PACKAGE 和 MUSIC_ACTIVITY 定位到目标音乐 App。
+如需测试其他音乐 App，请修改这两个值。
+
+获取方法：
+  1. 在手机上打开目标 App
+  2. 执行: adb shell dumpsys window windows | grep -E 'mCurrentFocus|mFocusedApp'
+  3. 输出中 {包名}/{Activity名} 即为所需值
 """
 
 # 音乐 App 包名和主 Activity（示例为网易云音乐，请根据实际 App 替换）
+# 例如 QQ 音乐: MUSIC_PACKAGE = "com.tencent.qqmusic"
+#              MUSIC_ACTIVITY = "com.tencent.qqmusic.activity.AppStarterActivity"
 MUSIC_PACKAGE = "com.netease.cloudmusic"
 MUSIC_ACTIVITY = "com.netease.cloudmusic.activity.LoadingActivity"
 
