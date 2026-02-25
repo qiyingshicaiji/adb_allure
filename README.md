@@ -11,6 +11,7 @@ adb_allure/
 ├── conftest.py                           # pytest fixtures（setup/teardown、allure 截图）
 ├── pytest.ini                            # pytest 配置文件
 ├── requirements.txt                      # Python 依赖
+├── Makefile                              # Make 构建文件（快捷命令）
 ├── tests/
 │   ├── __init__.py
 │   ├── test_01_search_and_play.py        # 场景1：正常搜索歌曲并播放
@@ -29,10 +30,30 @@ adb_allure/
 - 安卓手机或模拟器（通过 USB 或网络连接）
 - 被测音乐 App 已安装到设备上
 
+## 快速开始
+
+```bash
+# 1. 安装依赖
+make install
+
+# 2. 检查设备连接
+make check
+
+# 3. 修改 config.py 中的配置（包名、坐标等）
+
+# 4. 执行全部测试
+make test
+
+# 5. 生成并查看 Allure 报告
+make report
+```
+
 ## 安装依赖
 
 ```bash
 pip install -r requirements.txt
+# 或
+make install
 ```
 
 ## 配置说明
@@ -57,12 +78,16 @@ pip install -r requirements.txt
 
 ```bash
 adb devices
+# 或
+make check
 ```
 
 ### 执行全部测试
 
 ```bash
 pytest
+# 或
+make test
 ```
 
 ### 执行指定场景
@@ -70,23 +95,36 @@ pytest
 ```bash
 # 仅运行场景 1
 pytest tests/test_01_search_and_play.py
+# 或
+make test-one F=tests/test_01_search_and_play.py
 
 # 仅运行场景 3
 pytest tests/test_03_call_interruption.py
+# 或
+make test-one F=tests/test_03_call_interruption.py
 ```
 
 ### 生成 Allure 报告
 
 ```bash
-# 运行测试（自动生成 allure-results）
-pytest
-
-# 生成并打开 HTML 报告
-allure serve allure-results
+# 运行测试并在浏览器中打开报告
+make report
 
 # 或生成静态报告
+make report-static
+
+# 也可手动执行：
+pytest
+allure serve allure-results
+# 或
 allure generate allure-results -o allure-report --clean
 allure open allure-report
+```
+
+### 清理测试产物
+
+```bash
+make clean
 ```
 
 ## 测试场景说明
@@ -134,3 +172,16 @@ allure open allure-report
 | `check_media_playing()` | 检查是否播放中 |
 | `check_media_paused()` | 检查是否暂停 |
 | `is_process_running(package)` | 检查进程是否存活 |
+
+## Makefile 目标一览
+
+| 目标 | 说明 |
+|------|------|
+| `make help` | 显示帮助信息 |
+| `make install` | 安装 Python 依赖 |
+| `make check` | 检查 ADB 设备连接 |
+| `make test` | 执行全部测试 |
+| `make test-one F=<文件>` | 执行指定测试文件 |
+| `make report` | 运行测试并启动 Allure 在线报告 |
+| `make report-static` | 运行测试并生成静态 Allure HTML 报告 |
+| `make clean` | 清理测试产物 |
