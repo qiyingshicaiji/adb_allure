@@ -206,6 +206,27 @@ make clean
 - 播放歌曲 → 模拟来电广播 → 验证暂停 → 模拟挂断 → 验证恢复
 - **验证点**：来电时 media_session 状态为暂停；挂断后恢复播放
 
+#### 模拟来电 vs 真实来电
+
+本场景使用 ADB 广播（`am broadcast`）发送 `PHONE_STATE` 状态变更来**模拟**来电，而不是真正拨打电话。两者的区别如下：
+
+| 对比项 | 模拟来电（本项目方式） | 真实来电 |
+|--------|----------------------|---------|
+| **触发方式** | `adb shell am broadcast -a android.intent.action.PHONE_STATE --es state RINGING` | 另一部手机或运营商实际拨入 |
+| **系统层级** | 仅发送一个广播 Intent，不经过电话协议栈 | 经过完整的 Telephony 框架（RIL → TelephonyManager → AudioFocus） |
+| **来电界面** | **不会**弹出系统来电 UI | 会弹出系统来电界面并响铃 |
+| **音频焦点** | 不触发系统级 AudioFocus 抢占；依赖 App 自身监听广播来暂停 | 系统会抢占 AudioFocus，强制其他音频暂停或降低音量 |
+| **Android 版本兼容性** | Android 9+ 可能因权限限制导致广播被忽略 | 所有版本均正常工作 |
+| **适用场景** | 自动化测试中快速验证 App 对来电广播的响应逻辑 | 真实用户场景 |
+
+**结论**：
+
+- **模拟来电是预设的测试场景**，目的是验证音乐 App 是否正确监听了 `PHONE_STATE` 广播并做出暂停/恢复响应。
+- **真实来电**走的是系统 Telephony + AudioFocus 机制，比广播更可靠——即使 App 没有监听 `PHONE_STATE` 广播，系统也会通过 AudioFocus 强制其暂停。因此，如果真实来电时 App 能正常暂停/恢复，说明 App 的音频焦点处理是正确的。
+- 如果模拟来电测试失败但真实来电时 App 表现正常，很可能是因为 App 依赖 AudioFocus 而非 `PHONE_STATE` 广播来处理中断。
+
+> **提示**：如果使用 Android 模拟器（emulator），可以用 `adb emu gsm call <号码>` 发起更接近真实的模拟来电，它会触发完整的电话协议栈。
+
 ### 场景 4：横竖屏切换时播放状态保持
 - 播放歌曲 → 横屏 → 验证播放 → 竖屏 → 验证播放
 - **验证点**：旋转前后 media_session 播放状态始终为播放中
